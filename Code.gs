@@ -180,6 +180,27 @@ function doGet(e) {
       return jsonOut({ success: true, message: '삭제되었습니다.' }, cb);
     }
 
+    // --- 전체 기간 합계 ---
+    if (action === 'totalStats') {
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 2) return jsonOut({ success: true, totalWorkHours: '00:00', totalSalary: 0, totalDays: 0 }, cb);
+
+      const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
+      const validRows = data.filter(row => row[0]);
+      const totalMinutes = validRows.reduce((sum, row) => {
+        const parts = String(row[4] || '0:0').split(':').map(Number);
+        return sum + (parts[0] || 0) * 60 + (parts[1] || 0);
+      }, 0);
+
+      const HOURLY_RATE = 10320;
+      return jsonOut({
+        success: true,
+        totalDays: validRows.length,
+        totalWorkHours: `${String(Math.floor(totalMinutes / 60)).padStart(2,'0')}:${String(totalMinutes % 60).padStart(2,'0')}`,
+        totalSalary: Math.round((totalMinutes / 60) * HOURLY_RATE),
+      }, cb);
+    }
+
     return jsonOut({ success: false, message: '알 수 없는 action' }, cb);
 
   } catch (err) {

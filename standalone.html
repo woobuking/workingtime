@@ -897,6 +897,51 @@ form {
   }
 }
 
+.total-bar {
+  background: var(--green-dark);
+  border-radius: var(--r);
+  padding: 20px 28px;
+  margin-top: 16px;
+  box-shadow: var(--shadow-md);
+}
+.total-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.5);
+  margin-bottom: 14px;
+}
+.total-stats {
+  display: flex;
+  align-items: center;
+}
+.total-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+.total-name {
+  font-size: 12px;
+  color: rgba(255,255,255,.6);
+  font-weight: 500;
+}
+.total-val {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -.3px;
+}
+.total-val.accent { color: #6EE7B7; }
+.total-divider {
+  width: 1px;
+  height: 40px;
+  background: rgba(255,255,255,.15);
+  margin: 0 8px;
+}
+
 </style>
 </head>
 <body>
@@ -1000,6 +1045,26 @@ form {
           </div>
         </section>
       </section>
+
+      <div class="total-bar">
+        <div class="total-label">전체 기간 합계</div>
+        <div class="total-stats">
+          <div class="total-item">
+            <span class="total-name">총 근무일</span>
+            <span class="total-val" id="totalDays">-</span>
+          </div>
+          <div class="total-divider"></div>
+          <div class="total-item">
+            <span class="total-name">총 근무시간</span>
+            <span class="total-val" id="totalHours">-</span>
+          </div>
+          <div class="total-divider"></div>
+          <div class="total-item">
+            <span class="total-name">누적 급여</span>
+            <span class="total-val accent" id="totalSalary">-</span>
+          </div>
+        </div>
+      </div>
     </main>
   </div>
 
@@ -1026,6 +1091,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function refreshDashboard() {
   loadRecords();
   loadStats();
+  loadTotalStats();
 }
 
 function setTodayDate() {
@@ -1368,6 +1434,18 @@ async function loadStats() {
   } catch (error) {
     // 통계 로딩 실패 시 현재 화면을 유지합니다.
   }
+}
+
+async function loadTotalStats() {
+  try {
+    const json = await gsCall({ action: "totalStats" });
+    if (!json.success) return;
+    const [h, m] = json.totalWorkHours.split(":").map(Number);
+    document.getElementById("totalDays").textContent  = `${json.totalDays}일`;
+    document.getElementById("totalHours").textContent = m > 0 ? `${h}시간 ${m}분` : `${h}시간`;
+    document.getElementById("totalSalary").textContent =
+      json.totalSalary > 0 ? `${json.totalSalary.toLocaleString("ko-KR")}원` : "-";
+  } catch {}
 }
 
 function diffMinutes(startTime, endTime) {
