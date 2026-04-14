@@ -163,36 +163,35 @@
     .btn-save:active:not(:disabled) { transform: scale(.98); }
     .btn-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 
-    /* ── 기록 목록 ── */
-    #recordsList { display: flex; flex-direction: column; gap: 8px; }
+    /* ── 달력 인디케이터 ── */
     .state-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 32px 0; }
-    .rec {
-      display: flex; align-items: center; gap: 12px;
-      padding: 12px 14px; border: 1.5px solid var(--border);
-      border-radius: var(--r-sm); transition: border-color .15s, box-shadow .15s;
+    .cal-grid {
+      display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px;
     }
-    .rec:hover { border-color: #B7DFC4; box-shadow: var(--shadow); }
-    .rec-badge {
-      display: flex; flex-direction: column; align-items: center;
-      width: 44px; flex-shrink: 0; background: var(--green);
-      border-radius: 8px; padding: 6px 4px; color: #fff;
+    .cal-hd {
+      text-align: center; font-size: 11px; font-weight: 700;
+      color: var(--muted); padding: 2px 0 6px;
     }
-    .rec-badge.sat { background: #2563EB; }
-    .rec-badge.sun { background: #DC2626; }
-    .rec-day { font-size: 19px; font-weight: 800; line-height: 1; }
-    .rec-wd  { font-size: 10px; font-weight: 600; opacity: .8; margin-top: 2px; }
-    .rec-info { flex: 1; min-width: 0; }
-    .rec-times { font-size: 14px; font-weight: 600; color: var(--text); }
-    .rec-note  { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .rec-hours-wrap { text-align: right; flex-shrink: 0; }
-    .rec-hours { font-size: 16px; font-weight: 800; color: var(--green); }
-    .rec-hl    { font-size: 11px; color: var(--muted); }
-    .btn-del {
-      background: none; border: 1.5px solid var(--border); border-radius: 7px;
-      width: 28px; height: 28px; cursor: pointer; color: #C4CFCA; font-size: 13px;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s;
+    .cal-hd.sun { color: #DC2626; }
+    .cal-hd.sat { color: #2563EB; }
+    .cal-cell {
+      aspect-ratio: 1; border-radius: 8px;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      font-size: 12px; color: #C4CFCA; position: relative;
     }
-    .btn-del:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
+    .cal-cell.has-day { color: var(--muted); }
+    .cal-cell.has-day.sun { color: #FCA5A5; }
+    .cal-cell.has-day.sat { color: #93C5FD; }
+    .cal-cell.worked {
+      background: var(--green); color: #fff;
+      cursor: pointer; transition: background .15s, transform .1s;
+    }
+    .cal-cell.worked:hover { background: var(--green-dark); transform: scale(1.06); }
+    .cal-cell.worked.sun { background: #EF4444; }
+    .cal-cell.worked.sat { background: #3B82F6; }
+    .cal-num  { font-weight: 700; font-size: 13px; line-height: 1; }
+    .cal-hrs  { font-size: 9px; opacity: .85; margin-top: 2px; }
 
     /* ── 토스트 ── */
     .toast {
@@ -316,7 +315,7 @@
 
       <div class="card records-card">
         <div class="card-header"><span class="card-title">근무 기록</span></div>
-        <div id="recordsList"><div class="state-empty">불러오는 중…</div></div>
+        <div id="calendarWrap"><div class="state-empty">불러오는 중…</div></div>
       </div>
 
     </div>
@@ -438,39 +437,61 @@
   }
 
   async function loadRecords() {
-    const list = document.getElementById('recordsList');
-    list.innerHTML = '<div class="state-empty">불러오는 중…</div>';
+    const wrap = document.getElementById('calendarWrap');
+    wrap.innerHTML = '<div class="state-empty">불러오는 중…</div>';
     try {
       const json = await gsCall({ action:'records' });
-      if (!json.success) { list.innerHTML=`<div class="state-empty">${json.message}</div>`; return; }
+      if (!json.success) { wrap.innerHTML=`<div class="state-empty">${json.message}</div>`; return; }
       const prefix = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
       const recs = json.records.filter(r => r.date && r.date.startsWith(prefix));
-      if (!recs.length) { list.innerHTML='<div class="state-empty">이번 달 기록이 없습니다.</div>'; return; }
-      list.innerHTML = recs.map(renderRec).join('');
-      list.querySelectorAll('.btn-del').forEach(btn => {
-        btn.addEventListener('click', () => { if(confirm('삭제하시겠습니까?')) deleteRecord(btn.dataset.row); });
+      wrap.innerHTML = renderCalendar(recs, currentYear, currentMonth);
+      wrap.querySelectorAll('.cal-cell.worked').forEach(cell => {
+        cell.addEventListener('click', () => {
+          if (confirm(`${cell.dataset.date} 기록을 삭제하시겠습니까?`))
+            deleteRecord(cell.dataset.row);
+        });
       });
-    } catch { list.innerHTML='<div class="state-empty">불러오기 실패.</div>'; }
+    } catch { wrap.innerHTML='<div class="state-empty">불러오기 실패.</div>'; }
   }
 
-  function renderRec(r) {
-    const d=new Date(r.date+'T00:00:00'), wd=d.getDay();
-    const cls = wd===0?'sun':wd===6?'sat':'';
-    return `<div class="rec">
-      <div class="rec-badge ${cls}">
-        <span class="rec-day">${String(d.getDate()).padStart(2,'0')}</span>
-        <span class="rec-wd">${WEEKDAYS[wd]}</span>
-      </div>
-      <div class="rec-info">
-        <div class="rec-times">${r.startTime} ~ ${r.endTime}</div>
-        ${r.note?`<div class="rec-note">${r.note}</div>`:''}
-      </div>
-      <div class="rec-hours-wrap">
-        <div class="rec-hours">${r.workHours}</div>
-        <div class="rec-hl">근무시간</div>
-      </div>
-      <button class="btn-del" data-row="${r.id}" title="삭제">✕</button>
-    </div>`;
+  function renderCalendar(recs, year, month) {
+    // 근무 기록을 날짜(일)로 인덱싱
+    const worked = {};
+    recs.forEach(r => {
+      const day = parseInt(r.date.split('-')[2]);
+      worked[day] = r;
+    });
+
+    const firstWd  = new Date(year, month - 1, 1).getDay(); // 0=일
+    const daysInMo = new Date(year, month, 0).getDate();
+    const WD_LABELS = ['일','월','화','수','목','금','토'];
+    const WD_CLS    = ['sun','','','','','','sat'];
+
+    let html = '<div class="cal-grid">';
+    WD_LABELS.forEach((d, i) => {
+      html += `<div class="cal-hd ${WD_CLS[i]}">${d}</div>`;
+    });
+
+    // 첫 날 이전 빈 칸
+    for (let i = 0; i < firstWd; i++) html += '<div class="cal-cell"></div>';
+
+    for (let day = 1; day <= daysInMo; day++) {
+      const wd  = new Date(year, month - 1, day).getDay();
+      const wdc = WD_CLS[wd];
+      const rec = worked[day];
+      if (rec) {
+        html += `<div class="cal-cell worked ${wdc}" data-row="${rec.id}" data-date="${rec.date}">
+          <span class="cal-num">${day}</span>
+          <span class="cal-hrs">${rec.workHours}</span>
+        </div>`;
+      } else {
+        html += `<div class="cal-cell has-day ${wdc}">
+          <span class="cal-num">${day}</span>
+        </div>`;
+      }
+    }
+    html += '</div>';
+    return html;
   }
 
   async function deleteRecord(rowIndex) {

@@ -39,7 +39,16 @@ function ensureHeader(sheet) {
 function formatDate(val) {
   if (!val) return '';
   if (val instanceof Date) {
-    return Utilities.formatDate(val, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    return Utilities.formatDate(val, 'Asia/Seoul', 'yyyy-MM-dd');
+  }
+  return String(val);
+}
+
+// Sheets에 저장된 시간값(1899-12-30 epoch)을 HH:mm 문자열로 변환
+function formatTime(val) {
+  if (!val) return '';
+  if (val instanceof Date) {
+    return Utilities.formatDate(val, 'Asia/Seoul', 'HH:mm');
   }
   return String(val);
 }
@@ -114,10 +123,10 @@ function doGet(e) {
         .map((row, i) => ({
           id: i + 2,
           date: formatDate(row[0]),
-          startTime: row[1] || '',
-          endTime: row[2] || '',
+          startTime: formatTime(row[1]),
+          endTime: formatTime(row[2]),
           breakMinutes: String(row[3] || '0'),
-          workHours: row[4] || '',
+          workHours: formatTime(row[4]),
           note: row[5] || '',
         }))
         .filter(r => r.date)
