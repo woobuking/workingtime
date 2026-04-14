@@ -1,65 +1,23 @@
-// ===== 상태 =====
+// ===== Apps Script URL (하드코딩) =====
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxjEjM2_m9j0aK9HHcJiOzin4NuAyPqzSh02RcIE2wBg2cNO6abpA8aKaqihStUacXk/exec';
+
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-const STORAGE_KEY = 'workingtime_script_url';
 let currentYear  = new Date().getFullYear();
 let currentMonth = new Date().getMonth() + 1;
-let scriptUrl    = '';
+let selectedEndTime = '';
 
 // ===== 초기화 =====
 document.addEventListener('DOMContentLoaded', () => {
-  scriptUrl = localStorage.getItem(STORAGE_KEY) || '';
-
-  if (!scriptUrl) {
-    showSetup();
-  } else {
-    hideSetup();
-    init();
-  }
-
-  setupSetupPanel();
-  document.getElementById('btnSettings').addEventListener('click', showSetup);
-});
-
-function init() {
   setTodayDate();
-  setupAutoCalculate();
+  setupTimeBtns();
+  setupStartTimeWatch();
   setupForm();
   setupMonthNav();
   loadRecords();
   loadStats();
-}
+});
 
-// ===== 설정 패널 =====
-function showSetup() {
-  const overlay = document.getElementById('setupOverlay');
-  overlay.classList.remove('hidden');
-  if (scriptUrl) document.getElementById('scriptUrlInput').value = scriptUrl;
-}
-
-function hideSetup() {
-  document.getElementById('setupOverlay').classList.add('hidden');
-}
-
-function setupSetupPanel() {
-  document.getElementById('saveScriptUrl').addEventListener('click', () => {
-    const url = document.getElementById('scriptUrlInput').value.trim();
-    const errEl = document.getElementById('setupError');
-
-    if (!url.startsWith('https://script.google.com/macros/s/')) {
-      errEl.textContent = 'Apps Script 웹앱 URL 형식이 아닙니다.';
-      return;
-    }
-
-    localStorage.setItem(STORAGE_KEY, url);
-    scriptUrl = url;
-    errEl.textContent = '';
-    hideSetup();
-    init();
-    showToast('URL이 등록되었습니다!', 'success');
-  });
-}
-
-// ===== 날짜 기본값 = 오늘 =====
+// ===== 오늘 날짜 기본값 =====
 function setTodayDate() {
   const today = new Date();
   const yyyy = today.getFullYear();
@@ -68,46 +26,45 @@ function setTodayDate() {
   document.getElementById('date').value = `${yyyy}-${mm}-${dd}`;
 }
 
-// ===== 근무시간 자동 계산 =====
-function setupAutoCalculate() {
-  ['startTime', 'endTime', 'breakMinutes'].forEach(id => {
-    document.getElementById(id).addEventListener('input', calcWorkHours);
+// ===== 퇴근 시간 버튼 =====
+function setupTimeBtns() {
+  document.querySelectorAll('.time-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+      selectedEndTime = btn.dataset.time;
+      calcWorkHours();
+      document.getElementById('submitBtn').disabled = false;
+    });
   });
 }
 
+// 출근 시간 바뀌어도 재계산
+function setupStartTimeWatch() {
+  document.getElementById('startTime').addEventListener('change', calcWorkHours);
+}
+
+// ===== 근무시간 계산 =====
 function calcWorkHours() {
   const start = document.getElementById('startTime').value;
-  const end   = document.getElementById('endTime').value;
-  const brk   = parseInt(document.getElementById('breakMinutes').value) || 0;
+  const end   = selectedEndTime;
   const disp  = document.getElementById('calculatedHours');
 
   if (!start || !end) { disp.textContent = '--:--'; return; }
 
   const [sh, sm] = start.split(':').map(Number);
   const [eh, em] = end.split(':').map(Number);
-  let totalMin = (eh * 60 + em) - (sh * 60 + sm) - brk;
-  if (totalMin < 0) totalMin += 24 * 60;
-  if (totalMin <= 0) { disp.textContent = '--:--'; return; }
+  const totalMin = (eh * 60 + em) - (sh * 60 + sm);
 
-  disp.textContent = `${String(Math.floor(totalMin / 60)).padStart(2, '0')}:${String(totalMin % 60).padStart(2, '0')}`;
+  if (totalMin <= 0) { disp.textContent = '--:--'; return; }
+  disp.textContent = `${String(Math.floor(totalMin / 60)).padStart(2,'0')}:${String(totalMin % 60).padStart(2,'0')}`;
 }
 
-// ===== Apps Script 호출 헬퍼 =====
-async function gsGet(params) {
-  const url = new URL(scriptUrl);
+// ===== Apps Script 호출 (GET만 사용) =====
+async function gsCall(params) {
+  const url = new URL(SCRIPT_URL);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const res = await fetch(url.toString(), { redirect: 'follow' });
-  return res.json();
-}
-
-async function gsPost(data) {
-  const res = await fetch(scriptUrl, {
-    method: 'POST',
-    // text/plain → preflight 없이 CORS 통과
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(data),
-    redirect: 'follow',
-  });
   return res.json();
 }
 
@@ -115,37 +72,44 @@ async function gsPost(data) {
 function setupForm() {
   document.getElementById('workForm').addEventListener('submit', async (e) => {
     e.preventDefault();
+
     const workHours = document.getElementById('calculatedHours').textContent;
-    if (workHours === '--:--') { showToast('근무 시간을 확인해주세요.', 'error'); return; }
+    if (workHours === '--:--' || !selectedEndTime) {
+      showToast('퇴근 시간을 선택해주세요.', 'err');
+      return;
+    }
 
     const btn = document.getElementById('submitBtn');
     btn.disabled = true;
-    btn.textContent = '저장 중...';
+    btn.textContent = '저장 중…';
 
     try {
-      const json = await gsPost({
-        action: 'add',
+      const json = await gsCall({
+        action:       'add',
         date:         document.getElementById('date').value,
         startTime:    document.getElementById('startTime').value,
-        endTime:      document.getElementById('endTime').value,
-        breakMinutes: document.getElementById('breakMinutes').value,
+        endTime:      selectedEndTime,
+        breakMinutes: '0',
         workHours,
-        note:         document.getElementById('note').value,
+        note:         '',
       });
 
       if (json.success) {
-        showToast('저장되었습니다!', 'success');
-        document.getElementById('note').value = '';
+        showToast('저장되었습니다!', 'ok');
+        // 퇴근 버튼 초기화
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        selectedEndTime = '';
+        document.getElementById('calculatedHours').textContent = '--:--';
         loadRecords();
         loadStats();
       } else {
-        showToast(json.message || '오류가 발생했습니다.', 'error');
+        showToast(json.message || '오류가 발생했습니다.', 'err');
       }
     } catch {
-      showToast('서버 연결 오류', 'error');
+      showToast('서버 연결 오류', 'err');
     } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<span class="btn-icon">+</span> 기록 저장';
+      btn.textContent = '저장하기';
+      btn.disabled = !selectedEndTime;
     }
   });
 }
@@ -168,86 +132,87 @@ function updateMonthLabel() {
     `${currentYear}.${String(currentMonth).padStart(2, '0')}`;
 }
 
-// ===== 기록 목록 불러오기 =====
+// ===== 기록 불러오기 =====
 async function loadRecords() {
   const list = document.getElementById('recordsList');
-  list.innerHTML = '<div class="loading">불러오는 중...</div>';
+  list.innerHTML = '<div class="state-empty">불러오는 중…</div>';
   try {
-    const json = await gsGet({ action: 'records' });
-    if (!json.success) { list.innerHTML = `<div class="empty">${json.message}</div>`; return; }
+    const json = await gsCall({ action: 'records' });
+    if (!json.success) { list.innerHTML = `<div class="state-empty">${json.message}</div>`; return; }
 
     const prefix = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
     const records = json.records.filter(r => r.date && r.date.startsWith(prefix));
 
-    if (!records.length) { list.innerHTML = '<div class="empty">이번 달 기록이 없습니다.</div>'; return; }
+    if (!records.length) { list.innerHTML = '<div class="state-empty">이번 달 기록이 없습니다.</div>'; return; }
 
-    list.innerHTML = records.map(renderRecord).join('');
-    list.querySelectorAll('.btn-delete').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        if (!confirm('이 기록을 삭제하시겠습니까?')) return;
-        await deleteRecord(btn.dataset.row);
+    list.innerHTML = records.map(renderRec).join('');
+    list.querySelectorAll('.btn-del').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('삭제하시겠습니까?')) deleteRecord(btn.dataset.row);
       });
     });
   } catch {
-    list.innerHTML = '<div class="empty">불러오기 실패. URL 설정을 확인해주세요.</div>';
+    list.innerHTML = '<div class="state-empty">불러오기 실패. 연결을 확인해주세요.</div>';
   }
 }
 
-function renderRecord(r) {
-  const d = new Date(r.date + 'T00:00:00');
+function renderRec(r) {
+  const d   = new Date(r.date + 'T00:00:00');
   const day = d.getDate();
-  const wd  = WEEKDAYS[d.getDay()];
-  const sun = d.getDay() === 0;
-  const sat = d.getDay() === 6;
-  const col = sun ? '#EF4444' : sat ? '#3B82F6' : 'var(--primary)';
-  const bg  = sun ? '#FEF2F2' : sat ? '#EFF6FF' : 'var(--primary-light)';
+  const wd  = d.getDay();
+  const cls = wd === 0 ? 'sun' : wd === 6 ? 'sat' : '';
 
   return `
-  <div class="record-item">
-    <div class="record-date-box" style="background:${bg}">
-      <span class="record-day" style="color:${col}">${String(day).padStart(2,'0')}</span>
-      <span class="record-weekday" style="color:${col}">${wd}</span>
+  <div class="rec">
+    <div class="rec-badge ${cls}">
+      <span class="rec-day">${String(day).padStart(2,'0')}</span>
+      <span class="rec-wd">${WEEKDAYS[wd]}</span>
     </div>
-    <div class="record-info">
-      <div class="record-times">${r.startTime} ~ ${r.endTime}</div>
-      ${r.note ? `<div class="record-note">${escHtml(r.note)}</div>` : ''}
+    <div class="rec-info">
+      <div class="rec-times">${r.startTime} ~ ${r.endTime}</div>
+      ${r.note ? `<div class="rec-note">${esc(r.note)}</div>` : ''}
     </div>
-    <div>
-      <div class="record-hours">${r.workHours}</div>
-      <div class="record-hours-label">근무시간</div>
+    <div class="rec-hours-wrap">
+      <div class="rec-hours">${r.workHours}</div>
+      <div class="rec-hl">근무시간</div>
     </div>
-    <button class="btn-delete" data-row="${r.id}" title="삭제">&#x2715;</button>
+    <button class="btn-del" data-row="${r.id}" title="삭제">✕</button>
   </div>`;
 }
 
-// ===== 기록 삭제 =====
+// ===== 삭제 =====
 async function deleteRecord(rowIndex) {
   try {
-    const json = await gsPost({ action: 'delete', rowIndex });
-    if (json.success) {
-      showToast('삭제되었습니다.', 'success');
-      loadRecords(); loadStats();
-    } else {
-      showToast(json.message || '삭제 실패', 'error');
-    }
+    const json = await gsCall({ action: 'delete', rowIndex });
+    if (json.success) { showToast('삭제되었습니다.', 'ok'); loadRecords(); loadStats(); }
+    else showToast(json.message || '삭제 실패', 'err');
   } catch {
-    showToast('서버 연결 오류', 'error');
+    showToast('서버 연결 오류', 'err');
   }
 }
 
-// ===== 월별 통계 =====
+// ===== 통계 =====
 async function loadStats() {
   try {
-    const json = await gsGet({ action: 'stats', year: currentYear, month: currentMonth });
-    if (json.success) {
-      document.getElementById('statDays').textContent  = `${json.workDays}일`;
-      document.getElementById('statHours').textContent = `${json.totalWorkHours}h`;
+    const json = await gsCall({ action: 'stats', year: currentYear, month: currentMonth });
+    if (!json.success) return;
+    document.getElementById('statDays').textContent  = json.workDays;
+    document.getElementById('statHours').textContent = json.totalWorkHours;
+
+    // 평균 계산
+    if (json.workDays > 0) {
+      const [h, m] = json.totalWorkHours.split(':').map(Number);
+      const avgMin = Math.round((h * 60 + m) / json.workDays);
+      document.getElementById('statAvg').textContent =
+        `${String(Math.floor(avgMin / 60)).padStart(2,'0')}:${String(avgMin % 60).padStart(2,'0')}`;
+    } else {
+      document.getElementById('statAvg').textContent = '--:--';
     }
   } catch {}
 }
 
 // ===== 유틸 =====
-function escHtml(s) {
+function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
@@ -257,5 +222,5 @@ function showToast(msg, type = '') {
   t.textContent = msg;
   t.className = `toast show ${type}`;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2800);
+  toastTimer = setTimeout(() => { t.className = 'toast'; }, 2600);
 }

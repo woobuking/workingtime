@@ -12,34 +12,24 @@
 
 const SHEET_NAME = '근무기록';
 
-// ===== CORS 헤더 =====
-function setCorsHeaders(output) {
-  return output;
-}
-
 function jsonOut(data) {
   return ContentService
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ===== 헤더 행 보장 =====
 function ensureHeader(sheet) {
   if (sheet.getLastRow() === 0 || sheet.getRange(1, 1).getValue() !== '날짜') {
     sheet.insertRowBefore(1);
-    sheet.getRange(1, 1, 1, 6).setValues([
-      ['날짜', '출근시간', '퇴근시간', '휴게시간(분)', '근무시간', '메모']
-    ]);
-    // 헤더 스타일
-    const headerRange = sheet.getRange(1, 1, 1, 6);
-    headerRange.setBackground('#4F6AF5');
-    headerRange.setFontColor('#FFFFFF');
-    headerRange.setFontWeight('bold');
+    const h = sheet.getRange(1, 1, 1, 6);
+    h.setValues([['날짜', '출근시간', '퇴근시간', '휴게시간(분)', '근무시간', '메모']]);
+    h.setBackground('#4361EE');
+    h.setFontColor('#FFFFFF');
+    h.setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
 }
 
-// ===== 날짜 포맷 변환 =====
 function formatDate(val) {
   if (!val) return '';
   if (val instanceof Date) {
@@ -48,7 +38,7 @@ function formatDate(val) {
   return String(val);
 }
 
-// ===== GET 요청 처리 (조회) =====
+// ===== 모든 요청을 doGet으로 처리 (CORS 문제 없음) =====
 function doGet(e) {
   try {
     const action = e.parameter.action || 'records';
@@ -57,7 +47,7 @@ function doGet(e) {
     if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
     ensureHeader(sheet);
 
-    // --- 기록 목록 ---
+    // --- 기록 목록 조회 ---
     if (action === 'records') {
       const lastRow = sheet.getLastRow();
       if (lastRow < 2) return jsonOut({ success: true, records: [] });
@@ -65,7 +55,7 @@ function doGet(e) {
       const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
       const records = data
         .map((row, i) => ({
-          id: i + 2,             // 실제 시트 행 번호
+          id: i + 2,
           date: formatDate(row[0]),
           startTime: row[1] || '',
           endTime: row[2] || '',
@@ -73,8 +63,8 @@ function doGet(e) {
           workHours: row[4] || '',
           note: row[5] || '',
         }))
-        .filter(r => r.date)    // 빈 행 제외
-        .reverse();             // 최신순 정렬
+        .filter(r => r.date)
+        .reverse();
 
       return jsonOut({ success: true, records });
     }
@@ -85,53 +75,29 @@ function doGet(e) {
       const month = String(e.parameter.month).padStart(2, '0');
       const prefix = `${year}-${month}`;
       const lastRow = sheet.getLastRow();
-
       if (lastRow < 2) return jsonOut({ success: true, workDays: 0, totalWorkHours: '00:00' });
 
       const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
       const filtered = data.filter(row => formatDate(row[0]).startsWith(prefix));
-
       const totalMinutes = filtered.reduce((sum, row) => {
-        const wh = String(row[4] || '0:0');
-        const parts = wh.split(':').map(Number);
+        const parts = String(row[4] || '0:0').split(':').map(Number);
         return sum + (parts[0] || 0) * 60 + (parts[1] || 0);
       }, 0);
-
-      const h = Math.floor(totalMinutes / 60);
-      const m = totalMinutes % 60;
 
       return jsonOut({
         success: true,
         workDays: filtered.length,
-        totalWorkHours: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`,
+        totalWorkHours: `${String(Math.floor(totalMinutes / 60)).padStart(2,'0')}:${String(totalMinutes % 60).padStart(2,'0')}`,
       });
     }
 
-    return jsonOut({ success: false, message: '알 수 없는 action' });
-
-  } catch (err) {
-    return jsonOut({ success: false, message: err.toString() });
-  }
-}
-
-// ===== POST 요청 처리 (저장 / 삭제) =====
-function doPost(e) {
-  try {
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    let sheet = ss.getSheetByName(SHEET_NAME);
-    if (!sheet) sheet = ss.insertSheet(SHEET_NAME);
-    ensureHeader(sheet);
-
     // --- 기록 추가 ---
     if (action === 'add') {
-      const { date, startTime, endTime, breakMinutes, workHours, note } = data;
+      const { date, startTime, endTime, breakMinutes, workHours, note } = e.parameter;
       if (!date || !startTime || !endTime) {
         return jsonOut({ success: false, message: '날짜, 출근시간, 퇴근시간은 필수입니다.' });
       }
       sheet.appendRow([date, startTime, endTime, breakMinutes || '0', workHours, note || '']);
-      // 날짜 열 오름차순 정렬 (헤더 제외)
       if (sheet.getLastRow() > 2) {
         sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).sort(1);
       }
@@ -140,7 +106,7 @@ function doPost(e) {
 
     // --- 기록 삭제 ---
     if (action === 'delete') {
-      const rowIndex = parseInt(data.rowIndex);
+      const rowIndex = parseInt(e.parameter.rowIndex);
       if (isNaN(rowIndex) || rowIndex < 2) {
         return jsonOut({ success: false, message: '잘못된 행 번호입니다.' });
       }
