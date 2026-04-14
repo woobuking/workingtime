@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>근무 기록</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:        #2D6A4F;
+      --green-dark:   #1B4332;
+      --green-mid:    #40916C;
+      --green-light:  #D8F3DC;
+      --green-bg:     #F2F6F3;
+      --white:        #FFFFFF;
+      --text:         #1A2C1E;
+      --muted:        #6B7A72;
+      --border:       #DDE8E1;
+      --shadow:       0 2px 8px rgba(29,80,58,.07), 0 1px 2px rgba(0,0,0,.04);
+      --shadow-md:    0 4px 16px rgba(29,80,58,.1), 0 1px 4px rgba(0,0,0,.05);
+      --r:            16px;
+      --r-sm:         10px;
+    }
+
+    body {
+      font-family: 'Noto Sans KR', -apple-system, sans-serif;
+      background: var(--green-bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── 레이아웃 ── */
+    .app { display: flex; min-height: 100vh; }
+
+    /* ── 사이드바 ── */
+    .sidebar {
+      width: 200px; flex-shrink: 0;
+      background: var(--green-dark);
+      display: flex; flex-direction: column;
+      padding: 28px 16px;
+      position: sticky; top: 0; height: 100vh;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; padding: 0 8px; margin-bottom: 36px; }
+    .logo-icon { font-size: 22px; }
+    .logo-text  { font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -.3px; }
+    .nav { display: flex; flex-direction: column; gap: 4px; }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 11px 12px; border-radius: var(--r-sm);
+      font-size: 14px; font-weight: 500; color: rgba(255,255,255,.6);
+      cursor: pointer;
+    }
+    .nav-item.active { color: #fff; background: var(--green-mid); }
+    .nav-icon { font-size: 16px; }
+
+    /* ── 메인 ── */
+    .main { flex: 1; padding: 32px 28px; max-width: 900px; }
+
+    /* ── 상단 바 ── */
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 24px; }
+    .page-title { font-size: 26px; font-weight: 800; color: var(--text); }
+    .page-sub   { font-size: 13px; color: var(--muted); margin-top: 3px; }
+    .month-nav  { display: flex; align-items: center; gap: 8px; }
+    .month-label { font-size: 14px; font-weight: 700; color: var(--text); min-width: 72px; text-align: center; }
+    .month-btn {
+      background: var(--white); border: 1.5px solid var(--border);
+      border-radius: 8px; width: 32px; height: 32px;
+      font-size: 18px; cursor: pointer; color: var(--muted);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: var(--shadow);
+    }
+    .month-btn:hover { border-color: var(--green-mid); color: var(--green); }
+
+    /* ── 통계 카드 ── */
+    .stats-grid { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .stat-card { border-radius: var(--r); padding: 20px 22px; box-shadow: var(--shadow); }
+    .stat-card.green { background: var(--green); }
+    .stat-card.white { background: var(--white); }
+    .stat-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+    .stat-name { font-size: 13px; font-weight: 600; }
+    .stat-arrow { font-size: 16px; opacity: .7; }
+    .stat-card.green .stat-name,
+    .stat-card.green .stat-arrow { color: rgba(255,255,255,.85); }
+    .stat-card.white .stat-name,
+    .stat-card.white .stat-arrow { color: var(--muted); }
+    .stat-num { font-size: 32px; font-weight: 800; line-height: 1; color: #fff; }
+    .stat-num.dark { color: var(--text); }
+    .stat-desc { font-size: 12px; margin-top: 6px; }
+    .stat-card.green .stat-desc { color: rgba(255,255,255,.65); }
+    .stat-card.white .stat-desc { color: var(--muted); }
+
+    /* ── 바디 그리드 ── */
+    .body-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
+
+    /* ── 카드 ── */
+    .card { background: var(--white); border-radius: var(--r); box-shadow: var(--shadow); padding: 24px; }
+    .card-header { margin-bottom: 20px; }
+    .card-title { font-size: 15px; font-weight: 700; color: var(--text); }
+
+    /* ── 폼 ── */
+    form { display: flex; flex-direction: column; gap: 16px; }
+    .field { display: flex; flex-direction: column; gap: 7px; }
+    .field label { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+    .field input[type="date"],
+    .field input[type="time"] {
+      padding: 11px 14px; border: 1.5px solid var(--border);
+      border-radius: var(--r-sm); font-size: 15px; font-weight: 500;
+      color: var(--text); background: var(--green-bg);
+      outline: none; width: 100%; font-family: inherit;
+      transition: border-color .15s, box-shadow .15s; -webkit-appearance: none;
+    }
+    .field input:focus { border-color: var(--green-mid); box-shadow: 0 0 0 3px rgba(64,145,108,.12); background: #fff; }
+
+    /* ── 퇴근시간 버튼 ── */
+    .time-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+    .time-btn {
+      padding: 10px 4px; border: 1.5px solid var(--border);
+      border-radius: var(--r-sm); background: var(--green-bg);
+      font-size: 13px; font-weight: 600; color: var(--muted);
+      cursor: pointer; font-family: inherit; transition: all .15s;
+    }
+    .time-btn:hover { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
+    .time-btn.selected { background: var(--green); border-color: var(--green); color: #fff; box-shadow: 0 2px 8px rgba(29,80,58,.25); }
+
+    /* ── 근무시간 표시 ── */
+    .hours-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--green-light); border-radius: var(--r-sm);
+      padding: 13px 16px; border: 1.5px solid #B7DFC4;
+    }
+    .hours-label { font-size: 13px; font-weight: 600; color: var(--green); }
+    .hours-val   { font-size: 22px; font-weight: 800; color: var(--green-dark); letter-spacing: 1px; }
+
+    /* ── 저장 버튼 ── */
+    .btn-save {
+      padding: 14px; background: var(--green); color: #fff;
+      border: none; border-radius: var(--r-sm);
+      font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit;
+      box-shadow: 0 4px 14px rgba(29,80,58,.3);
+      transition: background .15s, transform .1s, opacity .15s; margin-top: 4px;
+    }
+    .btn-save:hover:not(:disabled) { background: var(--green-dark); }
+    .btn-save:active:not(:disabled) { transform: scale(.98); }
+    .btn-save:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+    /* ── 기록 목록 ── */
+    #recordsList { display: flex; flex-direction: column; gap: 8px; }
+    .state-empty { text-align: center; color: var(--muted); font-size: 14px; padding: 32px 0; }
+    .rec {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 14px; border: 1.5px solid var(--border);
+      border-radius: var(--r-sm); transition: border-color .15s, box-shadow .15s;
+    }
+    .rec:hover { border-color: #B7DFC4; box-shadow: var(--shadow); }
+    .rec-badge {
+      display: flex; flex-direction: column; align-items: center;
+      width: 44px; flex-shrink: 0; background: var(--green);
+      border-radius: 8px; padding: 6px 4px; color: #fff;
+    }
+    .rec-badge.sat { background: #2563EB; }
+    .rec-badge.sun { background: #DC2626; }
+    .rec-day { font-size: 19px; font-weight: 800; line-height: 1; }
+    .rec-wd  { font-size: 10px; font-weight: 600; opacity: .8; margin-top: 2px; }
+    .rec-info { flex: 1; min-width: 0; }
+    .rec-times { font-size: 14px; font-weight: 600; color: var(--text); }
+    .rec-note  { font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .rec-hours-wrap { text-align: right; flex-shrink: 0; }
+    .rec-hours { font-size: 16px; font-weight: 800; color: var(--green); }
+    .rec-hl    { font-size: 11px; color: var(--muted); }
+    .btn-del {
+      background: none; border: 1.5px solid var(--border); border-radius: 7px;
+      width: 28px; height: 28px; cursor: pointer; color: #C4CFCA; font-size: 13px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all .15s;
+    }
+    .btn-del:hover { background: #FEF2F2; color: #DC2626; border-color: #FECACA; }
+
+    /* ── 토스트 ── */
+    .toast {
+      position: fixed; bottom: 28px; left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: var(--green-dark); color: #fff;
+      padding: 12px 24px; border-radius: 100px;
+      font-size: 14px; font-weight: 600;
+      opacity: 0; pointer-events: none; white-space: nowrap; z-index: 999;
+      transition: all .3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .toast.ok   { background: var(--green-mid); }
+    .toast.err  { background: #DC2626; }
+
+    /* ── 반응형 ── */
+    @media (max-width: 760px) {
+      .sidebar { display: none; }
+      .main { padding: 20px 16px; }
+      .stats-grid { grid-template-columns: 1fr 1fr; }
+      .stats-grid .stat-card:last-child { grid-column: span 2; }
+      .body-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 440px) {
+      .stats-grid { grid-template-columns: 1fr; }
+      .stats-grid .stat-card:last-child { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="logo">
+      <span class="logo-icon">⏱</span>
+      <span class="logo-text">WorkTime</span>
+    </div>
+    <nav class="nav">
+      <div class="nav-item active">
+        <span class="nav-icon">◫</span>
+        <span>대시보드</span>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main">
+
+    <div class="topbar">
+      <div>
+        <h1 class="page-title">대시보드</h1>
+        <p class="page-sub">근무 시간을 기록하고 관리하세요</p>
+      </div>
+      <div class="month-nav">
+        <button class="month-btn" id="prevMonth">‹</button>
+        <span class="month-label" id="monthLabel"></span>
+        <button class="month-btn" id="nextMonth">›</button>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card green">
+        <div class="stat-top"><span class="stat-name">근무일</span><span class="stat-arrow">↗</span></div>
+        <div class="stat-num" id="statDays">0</div>
+        <div class="stat-desc">이번 달</div>
+      </div>
+      <div class="stat-card white">
+        <div class="stat-top"><span class="stat-name">총 근무시간</span><span class="stat-arrow">↗</span></div>
+        <div class="stat-num dark" id="statHours">00:00</div>
+        <div class="stat-desc">이번 달</div>
+      </div>
+      <div class="stat-card white">
+        <div class="stat-top"><span class="stat-name">평균 근무시간</span><span class="stat-arrow">↗</span></div>
+        <div class="stat-num dark" id="statAvg">--:--</div>
+        <div class="stat-desc">1일 평균</div>
+      </div>
+    </div>
+
+    <div class="body-grid">
+
+      <div class="card input-card">
+        <div class="card-header"><span class="card-title">기록 추가</span></div>
+        <form id="workForm">
+          <div class="field">
+            <label>날짜</label>
+            <input type="date" id="date" required />
+          </div>
+          <div class="field">
+            <label>출근 시간</label>
+            <input type="time" id="startTime" value="10:30" required />
+          </div>
+          <div class="field">
+            <label>퇴근 시간</label>
+            <div class="time-grid">
+              <button type="button" class="time-btn" data-time="14:30">14:30</button>
+              <button type="button" class="time-btn" data-time="15:00">15:00</button>
+              <button type="button" class="time-btn" data-time="15:30">15:30</button>
+              <button type="button" class="time-btn" data-time="16:00">16:00</button>
+              <button type="button" class="time-btn" data-time="16:30">16:30</button>
+              <button type="button" class="time-btn" data-time="17:00">17:00</button>
+              <button type="button" class="time-btn" data-time="17:30">17:30</button>
+            </div>
+          </div>
+          <div class="hours-row" id="hoursRow">
+            <span class="hours-label">실 근무시간</span>
+            <span class="hours-val" id="calculatedHours">--:--</span>
+          </div>
+          <button type="submit" class="btn-save" id="submitBtn" disabled>저장하기</button>
+        </form>
+      </div>
+
+      <div class="card records-card">
+        <div class="card-header"><span class="card-title">근무 기록</span></div>
+        <div id="recordsList"><div class="state-empty">불러오는 중…</div></div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxjEjM2_m9j0aK9HHcJiOzin4NuAyPqzSh02RcIE2wBg2cNO6abpA8aKaqihStUacXk/exec';
+  const WEEKDAYS = ['일','월','화','수','목','금','토'];
+  let currentYear  = new Date().getFullYear();
+  let currentMonth = new Date().getMonth() + 1;
+  let selectedEndTime = '';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    setTodayDate();
+    setupTimeBtns();
+    document.getElementById('startTime').addEventListener('change', calcWorkHours);
+    setupForm();
+    setupMonthNav();
+    loadRecords();
+    loadStats();
+  });
+
+  function setTodayDate() {
+    const t = new Date();
+    document.getElementById('date').value =
+      `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}`;
+  }
+
+  function setupTimeBtns() {
+    document.querySelectorAll('.time-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        selectedEndTime = btn.dataset.time;
+        calcWorkHours();
+        document.getElementById('submitBtn').disabled = false;
+      });
+    });
+  }
+
+  function calcWorkHours() {
+    const start = document.getElementById('startTime').value;
+    const disp  = document.getElementById('calculatedHours');
+    if (!start || !selectedEndTime) { disp.textContent = '--:--'; return; }
+    const [sh,sm] = start.split(':').map(Number);
+    const [eh,em] = selectedEndTime.split(':').map(Number);
+    const tot = (eh*60+em) - (sh*60+sm);
+    if (tot <= 0) { disp.textContent = '--:--'; return; }
+    disp.textContent = `${String(Math.floor(tot/60)).padStart(2,'0')}:${String(tot%60).padStart(2,'0')}`;
+  }
+
+  async function gsCall(params) {
+    const url = new URL(SCRIPT_URL);
+    Object.entries(params).forEach(([k,v]) => url.searchParams.set(k,v));
+    const res = await fetch(url.toString(), { redirect: 'follow' });
+    return res.json();
+  }
+
+  function setupForm() {
+    document.getElementById('workForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const workHours = document.getElementById('calculatedHours').textContent;
+      if (workHours === '--:--' || !selectedEndTime) { showToast('퇴근 시간을 선택해주세요.','err'); return; }
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true; btn.textContent = '저장 중…';
+      try {
+        const json = await gsCall({
+          action:'add', date:document.getElementById('date').value,
+          startTime:document.getElementById('startTime').value,
+          endTime:selectedEndTime, breakMinutes:'0', workHours, note:''
+        });
+        if (json.success) {
+          showToast('저장되었습니다!','ok');
+          document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('selected'));
+          selectedEndTime = '';
+          document.getElementById('calculatedHours').textContent = '--:--';
+          loadRecords(); loadStats();
+        } else { showToast(json.message||'오류 발생','err'); }
+      } catch { showToast('연결 오류','err'); }
+      finally { btn.textContent = '저장하기'; btn.disabled = !selectedEndTime; }
+    });
+  }
+
+  function setupMonthNav() {
+    updateMonthLabel();
+    document.getElementById('prevMonth').addEventListener('click', () => {
+      if (--currentMonth < 1) { currentMonth=12; currentYear--; }
+      updateMonthLabel(); loadRecords(); loadStats();
+    });
+    document.getElementById('nextMonth').addEventListener('click', () => {
+      if (++currentMonth > 12) { currentMonth=1; currentYear++; }
+      updateMonthLabel(); loadRecords(); loadStats();
+    });
+  }
+  function updateMonthLabel() {
+    document.getElementById('monthLabel').textContent =
+      `${currentYear}.${String(currentMonth).padStart(2,'0')}`;
+  }
+
+  async function loadRecords() {
+    const list = document.getElementById('recordsList');
+    list.innerHTML = '<div class="state-empty">불러오는 중…</div>';
+    try {
+      const json = await gsCall({ action:'records' });
+      if (!json.success) { list.innerHTML=`<div class="state-empty">${json.message}</div>`; return; }
+      const prefix = `${currentYear}-${String(currentMonth).padStart(2,'0')}`;
+      const recs = json.records.filter(r => r.date && r.date.startsWith(prefix));
+      if (!recs.length) { list.innerHTML='<div class="state-empty">이번 달 기록이 없습니다.</div>'; return; }
+      list.innerHTML = recs.map(renderRec).join('');
+      list.querySelectorAll('.btn-del').forEach(btn => {
+        btn.addEventListener('click', () => { if(confirm('삭제하시겠습니까?')) deleteRecord(btn.dataset.row); });
+      });
+    } catch { list.innerHTML='<div class="state-empty">불러오기 실패.</div>'; }
+  }
+
+  function renderRec(r) {
+    const d=new Date(r.date+'T00:00:00'), wd=d.getDay();
+    const cls = wd===0?'sun':wd===6?'sat':'';
+    return `<div class="rec">
+      <div class="rec-badge ${cls}">
+        <span class="rec-day">${String(d.getDate()).padStart(2,'0')}</span>
+        <span class="rec-wd">${WEEKDAYS[wd]}</span>
+      </div>
+      <div class="rec-info">
+        <div class="rec-times">${r.startTime} ~ ${r.endTime}</div>
+        ${r.note?`<div class="rec-note">${r.note}</div>`:''}
+      </div>
+      <div class="rec-hours-wrap">
+        <div class="rec-hours">${r.workHours}</div>
+        <div class="rec-hl">근무시간</div>
+      </div>
+      <button class="btn-del" data-row="${r.id}" title="삭제">✕</button>
+    </div>`;
+  }
+
+  async function deleteRecord(rowIndex) {
+    try {
+      const json = await gsCall({ action:'delete', rowIndex });
+      if (json.success) { showToast('삭제되었습니다.','ok'); loadRecords(); loadStats(); }
+      else showToast(json.message||'삭제 실패','err');
+    } catch { showToast('연결 오류','err'); }
+  }
+
+  async function loadStats() {
+    try {
+      const json = await gsCall({ action:'stats', year:currentYear, month:currentMonth });
+      if (!json.success) return;
+      document.getElementById('statDays').textContent  = json.workDays;
+      document.getElementById('statHours').textContent = json.totalWorkHours;
+      if (json.workDays > 0) {
+        const [h,m] = json.totalWorkHours.split(':').map(Number);
+        const avg = Math.round((h*60+m)/json.workDays);
+        document.getElementById('statAvg').textContent =
+          `${String(Math.floor(avg/60)).padStart(2,'0')}:${String(avg%60).padStart(2,'0')}`;
+      } else { document.getElementById('statAvg').textContent = '--:--'; }
+    } catch {}
+  }
+
+  let toastTimer;
+  function showToast(msg, type='') {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.className = `toast show ${type}`;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className='toast'; }, 2600);
+  }
+</script>
+</body>
+</html>
