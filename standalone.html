@@ -92,6 +92,23 @@
     .stat-card.green .stat-desc { color: rgba(255,255,255,.65); }
     .stat-card.white .stat-desc { color: var(--muted); }
 
+    /* ── 예상 급여 배너 ── */
+    .salary-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--white); border-radius: var(--r);
+      padding: 18px 24px; margin-bottom: 16px;
+      box-shadow: var(--shadow);
+      border-left: 4px solid var(--green);
+    }
+    .salary-left { display: flex; align-items: center; gap: 12px; }
+    .salary-icon { font-size: 28px; }
+    .salary-title { font-size: 14px; font-weight: 700; color: var(--text); }
+    .salary-sub   { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .salary-amount {
+      font-size: 26px; font-weight: 800; color: var(--green-dark);
+      letter-spacing: -0.5px;
+    }
+
     /* ── 바디 그리드 ── */
     .body-grid { display: grid; grid-template-columns: 320px 1fr; gap: 16px; align-items: start; }
 
@@ -250,6 +267,18 @@
         <div class="stat-num dark" id="statAvg">--</div>
         <div class="stat-desc">시간/일</div>
       </div>
+    </div>
+
+    <!-- 예상 급여 배너 -->
+    <div class="salary-bar">
+      <div class="salary-left">
+        <span class="salary-icon">💰</span>
+        <div>
+          <div class="salary-title">이번 달 예상 급여</div>
+          <div class="salary-sub">시급 10,320원 기준</div>
+        </div>
+      </div>
+      <div class="salary-amount" id="statSalary">-</div>
     </div>
 
     <div class="body-grid">
@@ -434,28 +463,27 @@
     } catch { showToast('연결 오류','err'); }
   }
 
+  const HOURLY_RATE = 10320;
+
   async function loadStats() {
     try {
       const json = await gsCall({ action:'stats', year:currentYear, month:currentMonth });
       if (!json.success) return;
       const [h, m] = json.totalWorkHours.split(':').map(Number);
+      const totalMin = h * 60 + m;
       document.getElementById('statDays').textContent = json.workDays;
 
-      // 총 근무시간: XX시간 YY분
-      if (h === 0 && m === 0) {
+      // 총 근무시간 표시
+      if (totalMin === 0) {
         document.getElementById('statHours').textContent = '0시간';
         document.getElementById('statHoursSub').textContent = '이번 달';
-      } else if (m === 0) {
-        document.getElementById('statHours').textContent = `${h}시간`;
-        document.getElementById('statHoursSub').textContent = `이번 달 (${json.workDays}일 근무)`;
       } else {
-        document.getElementById('statHours').textContent = `${h}시간`;
-        document.getElementById('statHoursSub').textContent = `${m}분 포함 · ${json.workDays}일 근무`;
+        document.getElementById('statHours').textContent = `${h}시간 ${m > 0 ? m + '분' : ''}`.trim();
+        document.getElementById('statHoursSub').textContent = `${json.workDays}일 근무`;
       }
 
       // 일 평균
       if (json.workDays > 0) {
-        const totalMin = h * 60 + m;
         const avg = Math.round(totalMin / json.workDays);
         const ah = Math.floor(avg / 60), am = avg % 60;
         document.getElementById('statAvg').textContent =
@@ -463,6 +491,11 @@
       } else {
         document.getElementById('statAvg').textContent = '--';
       }
+
+      // 예상 급여 (시급 × 총 근무시간)
+      const salary = Math.round((totalMin / 60) * HOURLY_RATE);
+      document.getElementById('statSalary').textContent =
+        salary > 0 ? `${salary.toLocaleString('ko-KR')}원` : '-';
     } catch {}
   }
 
