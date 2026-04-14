@@ -4,17 +4,23 @@
 // 사용법:
 //   1. Google Sheets에서 확장 프로그램 > Apps Script 열기
 //   2. 이 코드 전체를 붙여넣기
-//   3. 배포 > 새 배포 > 웹 앱
+//   3. 배포 > 배포 관리 > 수정 > 새 버전으로 배포
 //      - 실행 계정: 나 (Me)
 //      - 액세스 권한: 모든 사람 (Anyone)
-//   4. 배포 후 웹 앱 URL을 복사해서 앱에 등록
 // =====================================================
 
 const SHEET_NAME = '근무기록';
 
-function jsonOut(data) {
+// JSONP 지원 응답 (callback 파라미터가 있으면 JSONP, 없으면 JSON)
+function jsonOut(data, callback) {
+  const json = JSON.stringify(data);
+  if (callback) {
+    return ContentService
+      .createTextOutput(`${callback}(${json})`)
+      .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  }
   return ContentService
-    .createTextOutput(JSON.stringify(data))
+    .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
 }
 
@@ -23,7 +29,7 @@ function ensureHeader(sheet) {
     sheet.insertRowBefore(1);
     const h = sheet.getRange(1, 1, 1, 6);
     h.setValues([['날짜', '출근시간', '퇴근시간', '휴게시간(분)', '근무시간', '메모']]);
-    h.setBackground('#4361EE');
+    h.setBackground('#2D6A4F');
     h.setFontColor('#FFFFFF');
     h.setFontWeight('bold');
     sheet.setFrozenRows(1);
@@ -69,7 +75,6 @@ function importBackData() {
     ['2026-04-13', '10:30', '14:30', '0', '04:00', ''],
   ];
 
-  // 기존 데이터와 날짜 중복 체크
   const existing = sheet.getLastRow() > 1
     ? sheet.getRange(2, 1, sheet.getLastRow() - 1, 1).getValues().map(r => String(r[0]))
     : [];
@@ -82,7 +87,6 @@ function importBackData() {
     }
   });
 
-  // 날짜 오름차순 정렬
   if (sheet.getLastRow() > 2) {
     sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).sort(1);
   }
@@ -90,8 +94,9 @@ function importBackData() {
   SpreadsheetApp.getUi().alert(`✅ 백데이터 임포트 완료!\n${added}건 추가됨 (중복 제외)`);
 }
 
-// ===== 모든 요청을 doGet으로 처리 (CORS 문제 없음) =====
+// ===== 모든 요청을 doGet + JSONP로 처리 =====
 function doGet(e) {
+  const cb = e.parameter.callback || null;
   try {
     const action = e.parameter.action || 'records';
     const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -102,7 +107,7 @@ function doGet(e) {
     // --- 기록 목록 조회 ---
     if (action === 'records') {
       const lastRow = sheet.getLastRow();
-      if (lastRow < 2) return jsonOut({ success: true, records: [] });
+      if (lastRow < 2) return jsonOut({ success: true, records: [] }, cb);
 
       const data = sheet.getRange(2, 1, lastRow - 1, 6).getValues();
       const records = data
@@ -118,7 +123,7 @@ function doGet(e) {
         .filter(r => r.date)
         .reverse();
 
-      return jsonOut({ success: true, records });
+      return jsonOut({ success: true, records }, cb);
     }
 
     // --- 월별 통계 ---
@@ -127,7 +132,7 @@ function doGet(e) {
       const month = String(e.parameter.month).padStart(2, '0');
       const prefix = `${year}-${month}`;
       const lastRow = sheet.getLastRow();
-      if (lastRow < 2) return jsonOut({ success: true, workDays: 0, totalWorkHours: '00:00' });
+      if (lastRow < 2) return jsonOut({ success: true, workDays: 0, totalWorkHours: '00:00' }, cb);
 
       const data = sheet.getRange(2, 1, lastRow - 1, 5).getValues();
       const filtered = data.filter(row => formatDate(row[0]).startsWith(prefix));
@@ -140,35 +145,35 @@ function doGet(e) {
         success: true,
         workDays: filtered.length,
         totalWorkHours: `${String(Math.floor(totalMinutes / 60)).padStart(2,'0')}:${String(totalMinutes % 60).padStart(2,'0')}`,
-      });
+      }, cb);
     }
 
     // --- 기록 추가 ---
     if (action === 'add') {
       const { date, startTime, endTime, breakMinutes, workHours, note } = e.parameter;
       if (!date || !startTime || !endTime) {
-        return jsonOut({ success: false, message: '날짜, 출근시간, 퇴근시간은 필수입니다.' });
+        return jsonOut({ success: false, message: '날짜, 출근시간, 퇴근시간은 필수입니다.' }, cb);
       }
       sheet.appendRow([date, startTime, endTime, breakMinutes || '0', workHours, note || '']);
       if (sheet.getLastRow() > 2) {
         sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).sort(1);
       }
-      return jsonOut({ success: true, message: '저장되었습니다.' });
+      return jsonOut({ success: true, message: '저장되었습니다.' }, cb);
     }
 
     // --- 기록 삭제 ---
     if (action === 'delete') {
       const rowIndex = parseInt(e.parameter.rowIndex);
       if (isNaN(rowIndex) || rowIndex < 2) {
-        return jsonOut({ success: false, message: '잘못된 행 번호입니다.' });
+        return jsonOut({ success: false, message: '잘못된 행 번호입니다.' }, cb);
       }
       sheet.deleteRow(rowIndex);
-      return jsonOut({ success: true, message: '삭제되었습니다.' });
+      return jsonOut({ success: true, message: '삭제되었습니다.' }, cb);
     }
 
-    return jsonOut({ success: false, message: '알 수 없는 action' });
+    return jsonOut({ success: false, message: '알 수 없는 action' }, cb);
 
   } catch (err) {
-    return jsonOut({ success: false, message: err.toString() });
+    return jsonOut({ success: false, message: err.toString() }, cb);
   }
 }
