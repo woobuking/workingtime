@@ -7,17 +7,63 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+
+  <!-- 설정 패널 (URL 미등록 시 표시) -->
+  <div class="setup-overlay" id="setupOverlay">
+    <div class="setup-card">
+      <div class="setup-icon">&#9881;</div>
+      <h2>Apps Script URL 등록</h2>
+      <p class="setup-desc">
+        Google Sheets의 Apps Script 웹앱 URL을 등록해주세요.<br/>
+        최초 1회만 입력하면 됩니다.
+      </p>
+      <div class="setup-steps">
+        <div class="step">
+          <span class="step-num">1</span>
+          <span>Google Sheets 열기 → <strong>확장 프로그램 &gt; Apps Script</strong></span>
+        </div>
+        <div class="step">
+          <span class="step-num">2</span>
+          <span><code>Code.gs</code> 내용을 붙여넣고 저장</span>
+        </div>
+        <div class="step">
+          <span class="step-num">3</span>
+          <span><strong>배포 &gt; 새 배포</strong> → 유형: 웹 앱<br/>
+          실행: 나 / 액세스: <strong>모든 사람</strong></span>
+        </div>
+        <div class="step">
+          <span class="step-num">4</span>
+          <span>웹 앱 URL을 아래에 붙여넣기</span>
+        </div>
+      </div>
+      <div class="setup-input-group">
+        <input
+          type="url"
+          id="scriptUrlInput"
+          placeholder="https://script.google.com/macros/s/.../exec"
+          autocomplete="off"
+        />
+        <button class="btn-setup-save" id="saveScriptUrl">등록하기</button>
+      </div>
+      <p class="setup-error" id="setupError"></p>
+    </div>
+  </div>
+
   <div class="container">
 
     <!-- 헤더 -->
     <header class="header">
-      <div class="header-icon">&#128338;</div>
+      <div class="header-top">
+        <div></div>
+        <div class="header-icon">&#128338;</div>
+        <button class="btn-settings" id="btnSettings" title="설정">&#9881;</button>
+      </div>
       <h1>근무 시간 기록</h1>
       <p class="header-sub">출퇴근 기록을 간편하게 관리하세요</p>
     </header>
 
     <!-- 월별 통계 -->
-    <div class="stats-bar" id="statsBar">
+    <div class="stats-bar">
       <div class="stat-item">
         <span class="stat-label">이번 달 근무일</span>
         <span class="stat-value" id="statDays">-</span>
@@ -55,11 +101,11 @@
         <div class="form-row two-col">
           <div class="form-group">
             <label for="breakMinutes">휴게 시간 (분)</label>
-            <input type="number" id="breakMinutes" name="breakMinutes" value="60" min="0" max="480" placeholder="60" />
+            <input type="number" id="breakMinutes" name="breakMinutes" value="60" min="0" max="480" />
           </div>
           <div class="form-group">
             <label>실 근무 시간</label>
-            <div class="work-hours-display" id="workHoursDisplay">
+            <div class="work-hours-display">
               <span class="hours-value" id="calculatedHours">--:--</span>
             </div>
           </div>
@@ -79,7 +125,7 @@
       </form>
     </div>
 
-    <!-- 최근 기록 -->
+    <!-- 근무 기록 목록 -->
     <div class="card records-card">
       <div class="records-header">
         <h2 class="card-title">근무 기록</h2>
@@ -89,7 +135,6 @@
           <button class="month-btn" id="nextMonth">&#8250;</button>
         </div>
       </div>
-
       <div id="recordsList" class="records-list">
         <div class="loading">불러오는 중...</div>
       </div>
