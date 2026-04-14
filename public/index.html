@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>근무 시간 기록</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="container">
+
+    <!-- 헤더 -->
+    <header class="header">
+      <div class="header-icon">&#128338;</div>
+      <h1>근무 시간 기록</h1>
+      <p class="header-sub">출퇴근 기록을 간편하게 관리하세요</p>
+    </header>
+
+    <!-- 월별 통계 -->
+    <div class="stats-bar" id="statsBar">
+      <div class="stat-item">
+        <span class="stat-label">이번 달 근무일</span>
+        <span class="stat-value" id="statDays">-</span>
+      </div>
+      <div class="stat-divider"></div>
+      <div class="stat-item">
+        <span class="stat-label">이번 달 총 근무시간</span>
+        <span class="stat-value" id="statHours">-</span>
+      </div>
+    </div>
+
+    <!-- 입력 폼 -->
+    <div class="card form-card">
+      <h2 class="card-title">근무 기록 추가</h2>
+      <form id="workForm">
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="date">날짜</label>
+            <input type="date" id="date" name="date" required />
+          </div>
+        </div>
+
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="startTime">출근 시간</label>
+            <input type="time" id="startTime" name="startTime" required />
+          </div>
+          <div class="form-group">
+            <label for="endTime">퇴근 시간</label>
+            <input type="time" id="endTime" name="endTime" required />
+          </div>
+        </div>
+
+        <div class="form-row two-col">
+          <div class="form-group">
+            <label for="breakMinutes">휴게 시간 (분)</label>
+            <input type="number" id="breakMinutes" name="breakMinutes" value="60" min="0" max="480" placeholder="60" />
+          </div>
+          <div class="form-group">
+            <label>실 근무 시간</label>
+            <div class="work-hours-display" id="workHoursDisplay">
+              <span class="hours-value" id="calculatedHours">--:--</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="note">메모 <span class="optional">(선택)</span></label>
+            <input type="text" id="note" name="note" placeholder="특이사항 메모" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitBtn">
+          <span class="btn-icon">+</span> 기록 저장
+        </button>
+
+      </form>
+    </div>
+
+    <!-- 최근 기록 -->
+    <div class="card records-card">
+      <div class="records-header">
+        <h2 class="card-title">근무 기록</h2>
+        <div class="month-nav">
+          <button class="month-btn" id="prevMonth">&#8249;</button>
+          <span class="month-label" id="monthLabel"></span>
+          <button class="month-btn" id="nextMonth">&#8250;</button>
+        </div>
+      </div>
+
+      <div id="recordsList" class="records-list">
+        <div class="loading">불러오는 중...</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 토스트 알림 -->
+  <div class="toast" id="toast"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
