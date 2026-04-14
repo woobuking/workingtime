@@ -236,19 +236,19 @@
 
     <div class="stats-grid">
       <div class="stat-card green">
+        <div class="stat-top"><span class="stat-name">월간 총 근무시간</span><span class="stat-arrow">↗</span></div>
+        <div class="stat-num" id="statHours">0시간</div>
+        <div class="stat-desc" id="statHoursSub">이번 달</div>
+      </div>
+      <div class="stat-card white">
         <div class="stat-top"><span class="stat-name">근무일</span><span class="stat-arrow">↗</span></div>
-        <div class="stat-num" id="statDays">0</div>
+        <div class="stat-num dark" id="statDays">0</div>
         <div class="stat-desc">이번 달</div>
       </div>
       <div class="stat-card white">
-        <div class="stat-top"><span class="stat-name">총 근무시간</span><span class="stat-arrow">↗</span></div>
-        <div class="stat-num dark" id="statHours">00:00</div>
-        <div class="stat-desc">이번 달</div>
-      </div>
-      <div class="stat-card white">
-        <div class="stat-top"><span class="stat-name">평균 근무시간</span><span class="stat-arrow">↗</span></div>
-        <div class="stat-num dark" id="statAvg">--:--</div>
-        <div class="stat-desc">1일 평균</div>
+        <div class="stat-top"><span class="stat-name">일 평균</span><span class="stat-arrow">↗</span></div>
+        <div class="stat-num dark" id="statAvg">--</div>
+        <div class="stat-desc">시간/일</div>
       </div>
     </div>
 
@@ -438,14 +438,31 @@
     try {
       const json = await gsCall({ action:'stats', year:currentYear, month:currentMonth });
       if (!json.success) return;
-      document.getElementById('statDays').textContent  = json.workDays;
-      document.getElementById('statHours').textContent = json.totalWorkHours;
+      const [h, m] = json.totalWorkHours.split(':').map(Number);
+      document.getElementById('statDays').textContent = json.workDays;
+
+      // 총 근무시간: XX시간 YY분
+      if (h === 0 && m === 0) {
+        document.getElementById('statHours').textContent = '0시간';
+        document.getElementById('statHoursSub').textContent = '이번 달';
+      } else if (m === 0) {
+        document.getElementById('statHours').textContent = `${h}시간`;
+        document.getElementById('statHoursSub').textContent = `이번 달 (${json.workDays}일 근무)`;
+      } else {
+        document.getElementById('statHours').textContent = `${h}시간`;
+        document.getElementById('statHoursSub').textContent = `${m}분 포함 · ${json.workDays}일 근무`;
+      }
+
+      // 일 평균
       if (json.workDays > 0) {
-        const [h,m] = json.totalWorkHours.split(':').map(Number);
-        const avg = Math.round((h*60+m)/json.workDays);
+        const totalMin = h * 60 + m;
+        const avg = Math.round(totalMin / json.workDays);
+        const ah = Math.floor(avg / 60), am = avg % 60;
         document.getElementById('statAvg').textContent =
-          `${String(Math.floor(avg/60)).padStart(2,'0')}:${String(avg%60).padStart(2,'0')}`;
-      } else { document.getElementById('statAvg').textContent = '--:--'; }
+          am > 0 ? `${ah}h ${am}m` : `${ah}h`;
+      } else {
+        document.getElementById('statAvg').textContent = '--';
+      }
     } catch {}
   }
 
