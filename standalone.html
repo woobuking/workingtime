@@ -591,6 +591,27 @@ form {
   border-radius: 8px;
 }
 
+.rec-swipe {
+  position: relative;
+  overflow: hidden;
+  border-radius: 8px;
+  touch-action: pan-y;
+}
+
+.rec-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 84px;
+  border: 0;
+  background: #a83f34;
+  color: #ffffff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
 .rec {
   display: grid;
   grid-template-columns: 92px minmax(0, 1fr);
@@ -600,6 +621,14 @@ form {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #ffffff;
+  position: relative;
+  z-index: 1;
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+
+.rec-swipe.open .rec {
+  transform: translateX(-84px);
 }
 
 .rec-date {
@@ -1016,6 +1045,7 @@ form {
                 <button type="button" class="time-btn" data-time="16:30">16:30</button>
                 <button type="button" class="time-btn" data-time="17:00">17:00</button>
                 <button type="button" class="time-btn" data-time="17:30">17:30</button>
+                <button type="button" class="time-btn" data-time="18:00">18:00</button>
               </div>
             </div>
 
@@ -1085,6 +1115,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setupTimeButtons();
   setupForm();
   setupMonthNavigation();
+  setupRecordInteractions();
   refreshDashboard();
 });
 
@@ -1375,24 +1406,133 @@ function renderRecord(record) {
   const weekday = WEEKDAYS[date.getDay()];
 
   return `
-    <article class="rec">
-      <div class="rec-date">
-        <span class="rec-day">${pad(date.getDate())}</span>
-        <span class="rec-month">${date.getFullYear()}.${pad(date.getMonth() + 1)}</span>
-        <span class="rec-weekday">${weekday}요일</span>
-      </div>
-      <div class="rec-body">
-        <div class="rec-header">
-          <h3 class="rec-title">${formatLongDate(record.date)}</h3>
+    <article class="rec-swipe" data-row-id="${escapeHtml(record.id)}">
+      <button type="button" class="rec-delete" aria-label="${escapeHtml(formatLongDate(record.date))} 기록 삭제">삭제</button>
+      <div class="rec">
+        <div class="rec-date">
+          <span class="rec-day">${pad(date.getDate())}</span>
+          <span class="rec-month">${date.getFullYear()}.${pad(date.getMonth() + 1)}</span>
+          <span class="rec-weekday">${weekday}요일</span>
         </div>
-        <div class="indicator-grid">
-          ${renderIndicator("시작", record.startTime)}
-          ${renderIndicator("종료", record.endTime)}
-          ${renderIndicator("근무시간", record.workHours)}
+        <div class="rec-body">
+          <div class="rec-header">
+            <h3 class="rec-title">${formatLongDate(record.date)}</h3>
+          </div>
+          <div class="indicator-grid">
+            ${renderIndicator("시작", record.startTime)}
+            ${renderIndicator("종료", record.endTime)}
+            ${renderIndicator("근무시간", record.workHours)}
+          </div>
         </div>
       </div>
     </article>
   `;
+}
+
+function setupRecordInteractions() {
+  const list = document.getElementById("recordsList");
+  let activeCard = null;
+  let openCard = null;
+  let startX = 0;
+  let startY = 0;
+  let moved = false;
+  let swipeOffset = 0;
+
+  const closeCard = (card) => {
+    if (!card) return;
+    const panel = card.querySelector(".rec");
+    card.classList.remove("open");
+    if (panel) panel.style.transform = "";
+    if (openCard === card) openCard = null;
+  };
+
+  const openDelete = (card) => {
+    if (openCard && openCard !== card) closeCard(openCard);
+    const panel = card.querySelector(".rec");
+    if (panel) panel.style.transform = "";
+    card.classList.add("open");
+    openCard = card;
+  };
+
+  list.addEventListener("click", async (event) => {
+    const deleteButton = event.target.closest(".rec-delete");
+    if (deleteButton) {
+      await deleteRecord(deleteButton.closest(".rec-swipe"));
+      return;
+    }
+
+    const card = event.target.closest(".rec-swipe");
+    if (!card || card !== openCard) {
+      closeCard(openCard);
+    }
+  });
+
+  list.addEventListener("touchstart", (event) => {
+    activeCard = event.target.closest(".rec-swipe");
+    if (!activeCard) return;
+    const touch = event.touches[0];
+    startX = touch.clientX;
+    startY = touch.clientY;
+    moved = false;
+    swipeOffset = activeCard.classList.contains("open") ? -84 : 0;
+    if (openCard && openCard !== activeCard) closeCard(openCard);
+  }, { passive: true });
+
+  list.addEventListener("touchmove", (event) => {
+    if (!activeCard) return;
+    const touch = event.touches[0];
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+
+    if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+    if (deltaX > 8 && activeCard.classList.contains("open")) {
+      closeCard(activeCard);
+      return;
+    }
+    if (deltaX >= 0) return;
+
+    event.preventDefault();
+    moved = true;
+    swipeOffset = Math.max(deltaX, -84);
+    activeCard.classList.remove("open");
+    activeCard.querySelector(".rec").style.transform = `translateX(${swipeOffset}px)`;
+  }, { passive: false });
+
+  list.addEventListener("touchend", () => {
+    if (!activeCard) return;
+    const shouldOpen = moved && swipeOffset <= -42;
+    if (shouldOpen) {
+      openDelete(activeCard);
+    } else {
+      closeCard(activeCard);
+    }
+    activeCard = null;
+  });
+}
+
+async function deleteRecord(card) {
+  const rowIndex = card?.dataset.rowId;
+  if (!rowIndex) {
+    showToast("삭제할 기록을 찾지 못했습니다.", "err");
+    return;
+  }
+
+  if (!window.confirm("이 근무 기록을 삭제할까요?")) {
+    card.classList.remove("open");
+    return;
+  }
+
+  try {
+    const response = await gsCall({ action: "delete", rowIndex });
+    if (!response.success) {
+      showToast(response.message || "삭제 중 문제가 생겼습니다.", "err");
+      return;
+    }
+    showToast(response.message || "삭제되었습니다.", "ok");
+    refreshDashboard();
+  } catch (error) {
+    showToast("삭제 중 연결 오류가 발생했습니다.", "err");
+  }
 }
 
 function renderIndicator(label, value) {
